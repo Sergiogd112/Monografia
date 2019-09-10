@@ -23,19 +23,32 @@ import lime
 import pickle as pk
 
 import gc
-try:
-    with open('metadata.pkl', 'rb') as f:
-        metadata = pickle.load(f)
-    max_words = metadata[0]
-    batch_size = metadata[1]
-    epoch = metadata[2]
-except:
-    max_words = 100000
-    batch_size = 32
-    epochs = 9
-    metadata=[max_words,batch_size,epochs]
-    with open('metadata.pkl','wb') as f:
-        pickle.dump(metadata, f, pickle.HIGHEST_PROTOCOL)
+from jutge import readline
+print('load,default, custom')
+mode=readline()
+if(mode=='load'):
+    try:
+        print('loading')
+        with open('metadata.pkl', 'rb') as f:
+            metadata = pk.load(f)
+        max_words = metadata[0]
+        batch_size = metadata[1]
+        epochs = metadata[2]
+    except:
+        print('unable to load taking default')
+        max_words = 1000
+        batch_size = 32
+        epochs = 9
+        metadata=[max_words,batch_size,epochs]
+        with open('metadata.pkl','wb') as f:
+            pk.dump(metadata, f, pk.HIGHEST_PROTOCOL)
+elif(mode=='custom'):
+    for i in range(20):
+        try:
+            print('max_words:')
+            max_words=int(readline())
+            print('batch')
+
 
 print('Loading data...')
 (x_train, y_train), (x_test, y_test) = reuters.load_data(num_words=max_words,
