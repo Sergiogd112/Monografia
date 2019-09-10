@@ -47,7 +47,8 @@ elif(mode=='custom'):
         try:
             print('max_words:')
             max_words=int(readline())
-            print('batch')
+            print('batch_size:')
+            batch_size=int(readline())
 
 
 print('Loading data...')
