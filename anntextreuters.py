@@ -7,8 +7,6 @@ Original file is located at
     https://colab.research.google.com/drive/1nzFg3vWPW_WCpphNbH8xuKTny3rzOW6j
 """
 
-!pip install lime
-
 from __future__ import print_function
 
 import numpy as np
@@ -148,7 +146,7 @@ class Mymodel():
         data=[this.dict[x] for x in text]
         return data
     def num_to_text(self,matrix):
-        data=this.tokenizer.
+        data=this.tokenizer
         text=[]
     def predict(self,text):
 
