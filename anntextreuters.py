@@ -9,6 +9,8 @@ Original file is located at
 
 from __future__ import print_function
 
+from matplotlib import pyplot as plt
+from lime.lime_text import LimeTextExplainer
 import numpy as np
 import keras
 from keras.datasets import reuters
@@ -18,17 +20,27 @@ from keras.preprocessing.text import Tokenizer
 from sklearn.metrics import accuracy_score, classification_report
 
 import lime
+import pickle as pk
 
 import gc
-
-max_words = 100000
-batch_size = 32
-epochs = 9
+try:
+    with open('metadata.pkl', 'rb') as f:
+        metadata = pickle.load(f)
+    max_words = metadata[0]
+    batch_size = metadata[1]
+    epoch = metadata[2]
+except:
+    max_words = 100000
+    batch_size = 32
+    epochs = 9
+    metadata=[max_words,batch_size,epochs]
+    with open('metadata.pkl','wb') as f:
+        pickle.dump(metadata, f, pickle.HIGHEST_PROTOCOL)
 
 print('Loading data...')
 (x_train, y_train), (x_test, y_test) = reuters.load_data(num_words=max_words,
                                                          test_split=0.2)
-X_train,X_test=x_train,x_test
+X_train, X_test = x_train, x_test
 print(len(x_train), 'train sequences')
 print(len(x_test), 'test sequences')
 
@@ -51,109 +63,133 @@ print('y_test shape:', y_test.shape)
 
 print('Building model...')
 model = Sequential()
-model.add(Dense(512, input_shape=(max_words,)))
-model.add(Activation('sigmoid'))
-model.add(Dropout(0.5))
-model.add(Dense(512, input_shape=(max_words,)))
-model.add(Activation('sigmoid'))
-model.add(Dropout(0.5))
-model.add(Dense(num_classes))
-model.add(Activation('softmax'))
+try:
+    #load json and create model
+    json_file = open('model.json', 'r')
+    loaded_model_json = json_file.read()
+    json_file.close()
+    loaded_model = model_from_json(loaded_model_json)
+    # load weights into new model
+    loaded_model.load_weights("model.h5")
+    print("Loaded model from disk")
+except:
+    model.add(Dense(512, input_shape=(max_words,)))
+    model.add(Activation('sigmoid'))
+    model.add(Dropout(0.5))
+    model.add(Dense(512, input_shape=(max_words,)))
+    model.add(Activation('sigmoid'))
+    model.add(Dropout(0.5))
+    model.add(Dense(num_classes))
+    model.add(Activation('softmax'))
+    gc.collect()
+    model.compile(loss='categorical_crossentropy',
+                  optimizer='adam',
+                  metrics=['accuracy'])
+
+    history = model.fit(x_train, y_train,
+                        batch_size=batch_size,
+                        epochs=epochs,
+                        verbose=1,
+                        validation_split=0.1)
+    print('_' * 200)
+    gc.collect()
+    score = model.evaluate(x_test, y_test,
+                           batch_size=batch_size, verbose=1)
+    print('Test score:', score[0])
+    print('Test accuracy:', score[1])
+    gc.collect()
+
+
+model_json = model.to_json()
+with open("model.json", "w") as json_file:
+    json_file.write(model_json)
+# serialize weights to HDF5
+model.save_weights("model.h5")
+
+
 gc.collect()
-model.compile(loss='categorical_crossentropy',
-              optimizer='adam',
-              metrics=['accuracy'])
 
-history = model.fit(x_train, y_train,
-                    batch_size=batch_size,
-                    epochs=epochs,
-                    verbose=1,
-                    validation_split=0.1)
-print('_'*200)
-gc.collect()
-score = model.evaluate(x_test, y_test,
-                       batch_size=batch_size, verbose=1)
-print('Test score:', score[0])
-print('Test accuracy:', score[1])
-gc.collect()
 
-from lime.lime_text import LimeTextExplainer
-from matplotlib import pyplot as plt
-
-np.shape(y_train)
-
-gc.collect()
-
-def decode(prediction,labels,real):
-    x=0
-    out=[]
+def decode(prediction, labels, real):
+    x = 0
+    out = []
     for pred in prediction:
-        decoded=[None]*len(labels)
+        decoded = [None] * len(labels)
         for i in range(len(labels)):
-            decoded[i]=[labels[i],pred[i],real[x][i]]
-            if(real[x][i]==1):
-                out.append([labels[i],pred[i]])
-        x=x+1
-    return decoded,out
+            decoded[i] = [labels[i], pred[i], real[x][i]]
+            if(real[x][i] == 1):
+                out.append([labels[i], pred[i]])
+        x = x + 1
+    return decoded, out
 
-labels=['cocoa','grain','veg-oil','earn','acq','wheat','copper','housing','money-supply',
-              'coffee','sugar','trade','reserves','ship','cotton','carcass','crude','nat-gas',
-              'cpi','money-fx','interest','gnp','meal-feed','alum','oilseed','gold','tin',
-              'strategic-metal','livestock','retail','ipi','iron-steel','rubber','heat','jobs',
-              'lei','bop','zinc','orange','pet-chem','dlr','gas','silver','wpi','hog','lead']
 
-pred=model.predict(x=x_train)
+labels = ['cocoa', 'grain', 'veg-oil', 'earn', 'acq', 'wheat', 'copper', 'housing', 'money-supply',
+          'coffee', 'sugar', 'trade', 'reserves', 'ship', 'cotton', 'carcass', 'crude', 'nat-gas',
+          'cpi', 'money-fx', 'interest', 'gnp', 'meal-feed', 'alum', 'oilseed', 'gold', 'tin',
+          'strategic-metal', 'livestock', 'retail', 'ipi', 'iron-steel', 'rubber', 'heat', 'jobs',
+          'lei', 'bop', 'zinc', 'orange', 'pet-chem', 'dlr', 'gas', 'silver', 'wpi', 'hog', 'lead']
+
+pred = model.predict(x=x_train)
+
 
 def sortbySecond(val):
     return val[1]
 
-a,b=decode(pred,labels,y_train)
-a.sort(key=sortbySecond,reverse=True)
-data=[x[1] for x in a]
-labels=[x[0] for x in a]
-real=[x[2] for x in a]
-plt.figure(dpi=75,figsize=(50,9))
+
+a, b = decode(pred, labels, y_train)
+a.sort(key=sortbySecond, reverse=True)
+data = [x[1] for x in a]
+labels = [x[0] for x in a]
+real = [x[2] for x in a]
+plt.figure(dpi=75, figsize=(50, 9))
 print(a[0])
-plt.bar(height=real,x=labels,width=0.9)
-plt.bar(height=data,x=labels,width=0.9)
+plt.bar(height=real, x=labels, width=0.9)
+plt.bar(height=data, x=labels, width=0.9)
 
 word_index = reuters.get_word_index()
-index_to_words={}
+index_to_words = {}
 for key, value in word_index.items():
-  index_to_words[value]=key
+    index_to_words[value] = key
 
 print(' '.join([index_to_words[x]for x in X_train[0]]))
 
+
 class Mymodel():
-    def __init__(self,model,dictionary,max_words):
-        this.model=model
-        this.dict=dictionary
-        this.max_words=max_words
+    def __init__(self, model, dictionary, max_words):
+        this.model = model
+        this.dict = dictionary
+        this.max_words = max_words
         this.tokenizer = Tokenizer(num_words=this.max_words)
-        this.reversedict=reversedict(this.dict)
+        this.reversedict = reversedict(this.dict)
+
     def reversedict(dictt):
-        index_to_words={}
+        index_to_words = {}
         for key, value in dictt.items():
-          index_to_words[value]=key
+            index_to_words[value] = key
         return index_to_words
-    def text_transformer(self,text):
-        data=text_to_num(text)
+
+    def text_transformer(self, text):
+        data = text_to_num(text)
 
         data = this.tokenizer.sequences_to_matrix(data, mode='binary')
         return data
-    def text_to_num(self,text):
-        text=text.split(' ')
-        data=[this.dict[x] for x in text]
-        return data
-    def num_to_text(self,matrix):
-        data=this.tokenizer
-        text=[]
-    def predict(self,text):
 
-        a=this.model.predict(data)
+    def text_to_num(self, text):
+        text = text.split(' ')
+        data = [this.dict[x] for x in text]
+        return data
+
+    def num_to_text(self, matrix):
+        data = this.tokenizer
+        text = []
+
+    def predict(self, text):
+
+        a = this.model.predict(data)
         return a
 
-explainer=LimeTextExplainer(class_names=labels)
-explainer.explain_instance(X_test,model.predict,)
+
+explainer = LimeTextExplainer(class_names=labels)
+explainer.explain_instance(X_test, model.predict,)
 
 len(labels)
