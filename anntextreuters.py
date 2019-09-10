@@ -25,8 +25,8 @@ import pickle as pk
 import gc
 from jutge import readline
 print('load,default, custom')
-mode=readline()
-if(mode=='load'):
+mode = readline()
+if(mode == 'load'):
     try:
         print('loading')
         with open('metadata.pkl', 'rb') as f:
@@ -39,17 +39,29 @@ if(mode=='load'):
         max_words = 1000
         batch_size = 32
         epochs = 9
-        metadata=[max_words,batch_size,epochs]
-        with open('metadata.pkl','wb') as f:
+        metadata = [max_words, batch_size, epochs]
+        with open('metadata.pkl', 'wb') as f:
             pk.dump(metadata, f, pk.HIGHEST_PROTOCOL)
-elif(mode=='custom'):
+elif(mode == 'custom'):
     for i in range(20):
         try:
             print('max_words:')
-            max_words=int(readline())
+            max_words = int(readline())
             print('batch_size:')
-            batch_size=int(readline())
-
+            batch_size = int(readline())
+            print('epochs:')
+            epoch=int(readline())
+            break
+        except:
+    else:
+        raise ReatriesExcided('you excided the number of retries')
+else:
+    max_words = 1000
+    batch_size = 32
+    epochs = 9
+    metadata = [max_words, batch_size, epochs]
+    with open('metadata.pkl', 'wb') as f:
+        pk.dump(metadata, f, pk.HIGHEST_PROTOCOL)
 
 print('Loading data...')
 (x_train, y_train), (x_test, y_test) = reuters.load_data(num_words=max_words,
@@ -77,16 +89,43 @@ print('y_test shape:', y_test.shape)
 
 print('Building model...')
 model = Sequential()
-try:
-    #load json and create model
-    json_file = open('model.json', 'r')
-    loaded_model_json = json_file.read()
-    json_file.close()
-    loaded_model = model_from_json(loaded_model_json)
-    # load weights into new model
-    loaded_model.load_weights("model.h5")
-    print("Loaded model from disk")
-except:
+if(mode=='load'):
+    try:
+        # load json and create model
+        json_file = open('model.json', 'r')
+        loaded_model_json = json_file.read()
+        json_file.close()
+        loaded_model = model_from_json(loaded_model_json)
+        # load weights into new model
+        loaded_model.load_weights("model.h5")
+        print("Loaded model from disk")
+    except:
+        model.add(Dense(512, input_shape=(max_words,)))
+        model.add(Activation('sigmoid'))
+        model.add(Dropout(0.5))
+        model.add(Dense(512, input_shape=(max_words,)))
+        model.add(Activation('sigmoid'))
+        model.add(Dropout(0.5))
+        model.add(Dense(num_classes))
+        model.add(Activation('softmax'))
+        gc.collect()
+        model.compile(loss='categorical_crossentropy',
+                      optimizer='adam',
+                      metrics=['accuracy'])
+
+        history = model.fit(x_train, y_train,
+                            batch_size=batch_size,
+                            epochs=epochs,
+                            verbose=1,
+                            validation_split=0.1)
+        print('_' * 200)
+        gc.collect()
+        score = model.evaluate(x_test, y_test,
+                               batch_size=batch_size, verbose=1)
+        print('Test score:', score[0])
+        print('Test accuracy:', score[1])
+        gc.collect()
+else:
     model.add(Dense(512, input_shape=(max_words,)))
     model.add(Activation('sigmoid'))
     model.add(Dropout(0.5))
@@ -112,7 +151,6 @@ except:
     print('Test score:', score[0])
     print('Test accuracy:', score[1])
     gc.collect()
-
 
 model_json = model.to_json()
 with open("model.json", "w") as json_file:
